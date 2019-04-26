@@ -46,18 +46,15 @@ def main():
 
     filename = './find_imgdataset1.csv'
 
-    trainset =dataloader.CustomDataset_new(filename)
 
-    #ipdb.set_trace()
-    train_loader = data.DataLoader(trainset, batch_size=1, shuffle=True, num_workers=4)
+    trainset =dataloader.CustomDataset_new(filename)
+    image3d, target3d=  make_3d_slicing(trainset,3)
+    dataset3d = dataloader.MyDataset(image3d, target3d)
+    train_loader = data.DataLoader(dataset3d, batch_size=1, shuffle=True, num_workers=4)
 
 
 
     """
-    trainset = datasets.VOCSegmentation("./seg_da/", year='2011', image_set='train',
-                                                    download=False, transform=transform, target_transform=transform)
-    train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=4)
-
     testset = datasets.VOCSegmentation("./seg_da/", year='2011', image_set='val',
                                                    download=False, transform=transform, target_transform=transform)
     test_loader = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, shuffle=False, num_workers=4)
@@ -66,9 +63,6 @@ def main():
 
     # 2. model
     my_net = model.UNet3D(1,1)
-
-
-
 
     # 3. gpu
     my_net = gpu_select(my_net,args.gpu_id)
@@ -83,6 +77,29 @@ def main():
             #test(test_loader, my_net, criterion, epoch)
 
 
+def make_3d_slicing(id,divider):
+    image3d_name = []
+    target3d_name = []
+    for i in range(len(id)):
+        target3d_name.append(id[0][0])
+        image3d_name.append(id[0][1])
+
+    divider = divider
+    start_pos = 0
+    image3d_name1 = []
+    target3d_name1 = []
+    for i in range(start_pos, len(image3d_name), divider):
+        image = image3d_name[start_pos:start_pos + divider]
+        mask = target3d_name[start_pos:start_pos + divider]
+        start_pos = start_pos + divider
+
+        image_3d = torch.cat([image[0], image[1], image[2]], 1)
+        mask_3d = torch.cat([mask[0], mask[1], mask[2]], 1)
+
+        image3d_name1.append(image_3d)
+        target3d_name1.append(mask_3d)
+
+    return  image3d_name1, target3d_name1
 
 
 def train(train_loader,model,loss_function,optimizer,epoch):
