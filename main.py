@@ -22,15 +22,12 @@ import dataloader
 parser = argparse.ArgumentParser()
 
 
-
-parser.add_argument('--input_size',default=256)
 parser.add_argument('--batch_size',default=1)
 parser.add_argument('--lr',default=0.001)
-parser.add_argument('--gpu_id',default='0,1,2,3')
+parser.add_argument('--gpu_id',default='0')
 parser.add_argument('--dst_root', default='/data1/archive/lung_seg_location')
 parser.add_argument('--exp', type=str)
 args = parser.parse_args()
-
 
 
 
@@ -44,30 +41,25 @@ def main():
     )
     # make_csv()
 
-    filename = './find_imgdataset1.csv'
+    train_filename = './find_imgdataset3.csv'
+    test_filename = './find_testdataset3.csv'
 
 
-    trainset =dataloader.CustomDataset_new(filename)
-    image3d, target3d=  make_3d_slicing(trainset,3)
-    dataset3d = dataloader.MyDataset(image3d, target3d)
-    train_loader = data.DataLoader(dataset3d, batch_size=1, shuffle=True, num_workers=4)
+    trainset =dataloader.CustomDataset(train_filename)
+    train_loader = data.DataLoader(trainset, batch_size=1, shuffle=True, num_workers=4)
 
+    testset = dataloader.CustomDataset(train_filename)
+    test_loader = data.DataLoader(testset, batch_size=1, shuffle=True, num_workers=4)
 
-
-    """
-    testset = datasets.VOCSegmentation("./seg_da/", year='2011', image_set='val',
-                                                   download=False, transform=transform, target_transform=transform)
-    test_loader = torch.utils.data.DataLoader(testset, batch_size=args.batch_size, shuffle=False, num_workers=4)
-    """
 
 
     # 2. model
-    my_net = model.UNet3D(1,1)
+    my_net = model.UNet3D(in_dim=1,out_dim=1,num_filter=4)
 
     # 3. gpu
     my_net = gpu_select(my_net,args.gpu_id)
     # 4. loss
-    criterion = nn.CrossEntropyLoss().cuda()
+    criterion = nn.BCEWithLogitsLoss().cuda()
 
     # 5. optim
     optimizer = torch.optim.SGD(my_net.parameters(), lr=args.lr, momentum=0.9)
@@ -77,30 +69,6 @@ def main():
             #test(test_loader, my_net, criterion, epoch)
 
 
-def make_3d_slicing(id,divider):
-    image3d_name = []
-    target3d_name = []
-    for i in range(len(id)):
-        target3d_name.append(id[0][0])
-        image3d_name.append(id[0][1])
-
-    divider = divider
-    start_pos = 0
-    image3d_name1 = []
-    target3d_name1 = []
-    for i in range(start_pos, len(image3d_name), divider):
-        image = image3d_name[start_pos:start_pos + divider]
-        mask = target3d_name[start_pos:start_pos + divider]
-        start_pos = start_pos + divider
-
-        image_3d = torch.cat([image[0], image[1], image[2]], 1)
-        mask_3d = torch.cat([mask[0], mask[1], mask[2]], 1)
-
-        image3d_name1.append(image_3d)
-        target3d_name1.append(mask_3d)
-
-    return  image3d_name1, target3d_name1
-
 
 def train(train_loader,model,loss_function,optimizer,epoch):
     model.train()
@@ -108,13 +76,13 @@ def train(train_loader,model,loss_function,optimizer,epoch):
     total_jacc=0
     for i, (data, target) in enumerate(train_loader):
 
-        data, target = data.cuda(), target.long().cuda()
+        data, target = data.cuda(), target.cuda()
         optimizer.zero_grad()
         data,target = Variable(data),Variable(target)
 
 
         output = model(data)
-        #ipdb.set_trace()
+
         loss = loss_function(output, target)
 
         total_loss += loss.item()
